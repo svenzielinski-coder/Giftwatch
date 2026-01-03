@@ -45,7 +45,7 @@ def _pick_currency(text: str) -> Optional[str]:
 
 def fetch_price(url: str, timeout: int = 20) -> Tuple[Optional[float], Optional[str], str]:
     headers = {"User-Agent": UA, "Accept-Language": "de-DE,de;q=0.9,en;q=0.8"}
-    r = requests.get(url, headers=headers, timeout=timeout)
+    r = requests.get(url, headers=headers, timeout=10)
     r.raise_for_status()
 
     soup = BeautifulSoup(r.text, "lxml")
