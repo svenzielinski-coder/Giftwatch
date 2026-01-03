@@ -1,4 +1,6 @@
 import streamlit as st
+
+st.write("Streamlit-Version:", st.__version__)
 import pandas as pd
 
 from db import (
