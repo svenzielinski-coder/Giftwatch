@@ -8,8 +8,16 @@ from db import (
 )
 from price_fetcher import fetch_price
 
+# ---------- Wichtig: Debug + DB Init (nicht blockierend) ----------
 st.set_page_config(page_title="GiftWatch", page_icon="🎁", layout="wide")
-init_db()
+st.write("App gestartet ✅")  # wenn du das siehst, startet Streamlit korrekt
+
+@st.cache_resource
+def _init():
+    init_db()
+
+_init()
+# ---------------------------------------------------------------
 
 st.title("🎁 GiftWatch – Geschenkideen mit Preisverlauf & Preisalarm")
 
@@ -59,7 +67,11 @@ with colB:
 
     latest = get_latest_price(idea["id"])
     if latest:
-        st.metric("Letzter Preis", f"{latest['price']} {latest.get('currency','EUR')}", help=f"Quelle: {latest.get('source','')}")
+        st.metric(
+            "Letzter Preis",
+            f"{latest['price']} {latest.get('currency','EUR')}",
+            help=f"Quelle: {latest.get('source','')}"
+        )
     else:
         st.warning("Noch kein Preis gespeichert.")
 
@@ -69,8 +81,10 @@ with colB:
         e_person = st.text_input("Für wen?", value=idea.get("person") or "")
         e_occasion = st.text_input("Anlass", value=idea.get("occasion") or "")
         e_notes = st.text_area("Notizen", value=idea.get("notes") or "")
-        e_currency = st.selectbox("Währung", ["EUR", "USD", "CHF", "GBP"],
-                                 index=["EUR","USD","CHF","GBP"].index(idea.get("currency","EUR")))
+        e_currency = st.selectbox(
+            "Währung", ["EUR", "USD", "CHF", "GBP"],
+            index=["EUR", "USD", "CHF", "GBP"].index(idea.get("currency", "EUR"))
+        )
         e_active = st.checkbox("Aktiv", value=(idea["active"] == 1))
 
         if st.button("Änderungen speichern"):
@@ -80,27 +94,39 @@ with colB:
     st.divider()
 
     c1, c2 = st.columns(2)
+
+    # Optional: Damit Streamlit nicht „hängt“, wenn fetch_price lange dauert:
+    # Wir führen fetch_price nur auf Button-Klick aus (machst du schon) + klarer Fehlertext.
     with c1:
         if st.button("🔄 Preis automatisch holen"):
-            with st.spinner("Hole Preis..."):
-                price, cur, source = fetch_price(idea["url"])
-            if price is None:
-                st.error("Keinen Preis gefunden. Nutze 'Manuell eintragen'.")
+            try:
+                with st.spinner("Hole Preis..."):
+                    price, cur, source = fetch_price(idea["url"])
+            except Exception as e:
+                st.error(f"Fehler beim Preisabruf: {e}")
             else:
-                add_price_point(idea["id"], price, currency=(cur or idea.get("currency","EUR")), source=source)
-                st.success(f"Preis gespeichert: {price} {(cur or idea.get('currency','EUR'))} (Quelle: {source})")
+                if price is None:
+                    st.error("Keinen Preis gefunden. Nutze 'Manuell eintragen'.")
+                else:
+                    add_price_point(
+                        idea["id"],
+                        price,
+                        currency=(cur or idea.get("currency", "EUR")),
+                        source=source
+                    )
+                    st.success(f"Preis gespeichert: {price} {(cur or idea.get('currency','EUR'))} (Quelle: {source})")
 
     with c2:
         with st.form("manual_price"):
             mp = st.text_input("Manueller Preis (z.B. 79.99)")
-            mcur = st.selectbox("Währung (manuell)", ["EUR","USD","CHF","GBP"], index=0)
+            mcur = st.selectbox("Währung (manuell)", ["EUR", "USD", "CHF", "GBP"], index=0)
             submitted = st.form_submit_button("➕ Manuell eintragen")
             if submitted:
                 try:
                     val = float(mp.replace(",", "."))
                     add_price_point(idea["id"], val, currency=mcur, source="manual")
                     st.success("Manueller Preis gespeichert.")
-                except:
+                except Exception:
                     st.error("Bitte Zahl eingeben, z.B. 79.99")
 
     st.subheader("⏰ Preisalarm")
